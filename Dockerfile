@@ -31,4 +31,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "from environment import AiSecurityEnv; env = AiSecurityEnv(); env.reset(); print('OK')" || exit 1
 
 # Default command: run baseline agent
-CMD ["python", "-m", "inference", "--mode", "benchmark", "--episodes", "10"]
+CMD ["python", "app.py"]
