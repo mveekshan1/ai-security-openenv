@@ -15,6 +15,7 @@ COPY environment.py .
 COPY tasks.py .
 COPY inference.py .
 COPY openenv.yaml .
+COPY . /app
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
