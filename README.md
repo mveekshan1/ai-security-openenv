@@ -1,8 +1,12 @@
+---
 title: AI Security OpenEnv
 emoji: 🛡️
 colorFrom: blue
 colorTo: indigo
 sdk: docker
+app_file: app.py
+pinned: false
+---
 
 # AI Security Policy Enforcement & Firewall Optimization
 
