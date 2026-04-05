@@ -11,15 +11,18 @@ MANDATORY REQUIREMENTS:
 
 import os
 import textwrap
-from typing import List, Optional
+import json
+from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 from environment import AiSecurityEnv
 
 # Environment variables (mandatory)
+# Default only API_BASE_URL and MODEL_NAME as required by the OpenEnv checklist.
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4")
-HF_TOKEN = os.getenv("HF_TOKEN", "")
+HF_TOKEN = os.getenv("HF_TOKEN")
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")  # optional for from_docker_image() usage
 
 # Task configuration
 TASKS = [
@@ -87,7 +90,7 @@ def run_task(task_id: str, client: OpenAI) -> None:
     # Reset environment
     state = env.reset()
     
-    rewards = []
+    rewards: List[float] = []
     last_error = None
     success = False
     
@@ -131,7 +134,7 @@ Logs:
                 }
             
             # Execute step
-            observation, reward, done, info = env.step(action)
+            observation, reward, done, _ = env.step(action)
             
             # Log step
             log_step(step, json.dumps(action), reward, done, last_error)
@@ -157,11 +160,11 @@ Logs:
     log_end(success, len(rewards), final_score, rewards)
 
 
-def main():
-    """Main inference function."""
-    # Initialize OpenAI client
+def run_openai_inference() -> None:
+    """Run the OpenAI-based inference evaluation."""
+    # Initialize OpenAI client using environment-configured credentials.
     client = OpenAI(
-        api_key=HF_TOKEN or os.getenv("OPENAI_API_KEY", ""),
+        api_key=HF_TOKEN or os.getenv("OPENAI_API_KEY"),
         base_url=API_BASE_URL
     )
     
@@ -171,81 +174,6 @@ def main():
             run_task(task_id, client)
         except Exception as e:
             print(f"Error running task {task_id}: {e}", flush=True)
-
-
-if __name__ == "__main__":
-    main()
-        median_score = (sorted_scores[len(sorted_scores)//2] if len(sorted_scores) % 2 == 1
-                       else (sorted_scores[len(sorted_scores)//2 - 1] + sorted_scores[len(sorted_scores)//2]) / 2)
-        
-        # Success rate: % of tasks with score >= 0.8
-        success_threshold = 0.8
-        success_count = sum(1 for score in rewards if score >= success_threshold)
-        success_rate = success_count / len(rewards) if rewards else 0.0
-
-        # Risk level assessment based on average score
-        if average_score >= 0.85:
-            risk_level = "low"
-        elif average_score >= 0.70:
-            risk_level = "medium"
-        else:
-            risk_level = "high"
-
-        # Confidence in evaluation
-        confidence = min(1.0, len(rewards) / 10.0)  # Scale with episode count
-
-        # Recommendations
-        recommendations = EvaluationSummary._generate_recommendations(
-            average_score, success_rate, rewards, risk_level
-        )
-
-        return {
-            "task_scores": [round(s, 4) for s in task_scores],
-            "average_score": round(average_score, 4),
-            "median_score": round(median_score, 4),
-            "success_rate": round(success_rate, 4),
-            "risk_level": risk_level,
-            "confidence": round(confidence, 4),
-            "recommendations": recommendations,
-            "total_episodes": episode_count,
-            "passing_episodes": success_count
-        }
-
-    @staticmethod
-    def _generate_recommendations(avg_score: float, success_rate: float,
-                                  scores: List[float], risk_level: str) -> List[str]:
-        """Generate actionable recommendations based on performance"""
-        recommendations: List[str] = []
-
-        if avg_score >= 0.85:
-            recommendations.append("Agent demonstrates strong threat detection capability.")
-        elif avg_score >= 0.70:
-            recommendations.append("Agent shows competent performance but needs improvement on edge cases.")
-        else:
-            recommendations.append("Agent requires significant improvement in threat classification.")
-
-        if success_rate < 0.5:
-            recommendations.append("Below 50% success rate - review grading criteria alignment.")
-
-        if len(scores) > 0:
-            min_score = min(scores)
-            max_score = max(scores)
-            variance = max_score - min_score
-
-            if variance > 0.6:
-                recommendations.append("High score variance detected - performance is inconsistent across tasks.")
-            
-            if min_score < 0.3:
-                recommendations.append("Extremely low scores on some tasks - check for specific failure patterns.")
-
-        if risk_level == "high":
-            recommendations.append("Risk level HIGH - not suitable for production deployment.")
-        elif risk_level == "medium":
-            recommendations.append("Risk level MEDIUM - recommend additional testing before deployment.")
-        else:
-            recommendations.append("Risk level LOW - suitable for controlled production deployment.")
-
-        return recommendations
 
 
 class SecurityAgentBaseline:
@@ -431,7 +359,12 @@ class SecurityAgentBaseline:
         failed: int = num_episodes - successes
 
         # Compute evaluation summary
-        eval_summary = EvaluationSummary.compute_summary(rewards, num_episodes)
+        eval_summary = {
+            "average_reward": round(avg_reward, 4),
+            "success_rate": round(successes / num_episodes, 4),
+            "min_reward": round(min(rewards) if rewards else 0.0, 4),
+            "max_reward": round(max(rewards) if rewards else 0.0, 4)
+        }
 
         return {
             "total_episodes": num_episodes,
