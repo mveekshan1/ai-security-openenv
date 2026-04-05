@@ -326,7 +326,7 @@ class LLMAgentAdapter:
     pass
 
 
-def run_benchmark(task_idx: Optional[int] = None, num_episodes: int = 1) -> Dict[str, Any]:
+def run_benchmark(task_idx: Optional[int] = None, num_episodes: int = 1) -> str:
     """
     Run benchmark for selected task.
     
@@ -335,11 +335,14 @@ def run_benchmark(task_idx: Optional[int] = None, num_episodes: int = 1) -> Dict
         num_episodes: Number of episodes to run
     
     Returns:
-        Formatted benchmark results
+        Formatted benchmark results as JSON string
     """
-    agent = SecurityAgentBaseline()
-    results = agent.run_benchmark(num_episodes)
-    return results
+    try:
+        agent = SecurityAgentBaseline()
+        results = agent.run_benchmark(num_episodes)
+        return json.dumps(results, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, indent=2)
 
 
 def main():
