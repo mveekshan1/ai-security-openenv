@@ -1,333 +1,97 @@
----
-title: AI Security OpenEnv
-emoji: 🛡️
-colorFrom: blue
-colorTo: indigo
-sdk: gradio
-app_file: app.py
-pinned: false
----
-
-# Security OpenEnv
-
-AI cybersecurity threat detection and response evaluation environment.
+# AI Security OpenEnv
 
 ## Overview
 
-Evaluate AI agents on security tasks:
-- **Task 1**: Data Leakage Prevention (Easy)
-- **Task 2**: Threat Detection (Medium)
-- **Task 3**: Advanced Threat Response (Hard)
+AI Security OpenEnv is a deterministic security environment for evaluating AI agents on threat detection and incident response tasks. The environment simulates realistic cybersecurity scenarios where agents must analyze security events, classify threats, and recommend appropriate containment actions. Each scenario presents a complete security event with logs, user context, and data sensitivity indicators.
 
-## Features
+The environment follows the OpenEnv framework (state-action-reward-done pattern) and is designed for benchmarking AI decision-making in security operations center (SOC) workflows.
 
-- Clean Gradio interface
-- Real-time threat detection evaluation
-- JSON performance metrics
-- Hugging Face Spaces compatible
+## Problem Statement
 
-## Running Locally
+Real-world security operations require rapid threat classification and response decisions. Security analysts must:
 
-```bash
-pip install -r requirements.txt
-python app.py
-```
+1. Analyze incoming security events with incomplete information
+2. Classify the type of threat present
+3. Recommend immediate containment or remediation actions
+4. Balance between false positives (blocking legitimate activity) and false negatives (missing actual threats)
 
-Visit `http://localhost:7860` in your browser.
+Automating these decisions requires AI agents capable of pattern recognition, contextual reasoning, and understanding security trade-offs. Traditional rules-based systems lack the flexibility to handle novel attack patterns, while AI agents must achieve high accuracy on diverse threat scenarios.
 
-## Project Structure
+This environment provides a controlled benchmark for measuring AI capability in security decision-making across varying threat complexity.
 
-```
-.
-├── app.py           # Gradio UI
-├── inference.py     # Agent & evaluation
-├── environment.py   # Security environment
-├── tasks.py        # Task definitions
-└── requirements.txt # Dependencies
-```
+## Solution
 
-## License
+AI Security OpenEnv addresses this problem through:
 
-MIT
+1. **Deterministic Environment**: Each security event is reproducible, enabling fair agent comparison
+2. **Graded Complexity**: Tasks range from obvious threats (easy) to cases with conflicting signals (hard)
+3. **Structured Evaluation**: Weighted scoring across decision components (allow/block, threat classification, response action, firewall rules)
+4. **Semantic Flexibility**: Accepts equivalent formatting while maintaining strict semantic requirements
+5. **Production Realism**: Security events mirror real SOC alerts with logs, anomalies, and context
 
+## Environment Design
 
-#### Deterministic Scoring
+### State
 
-All grading decisions are 100% reproducible:
-- **Same inputs → Same outputs**: No random elements in evaluation  
-- **Transparent criteria**: Exact rules for what constitutes correct answers
-- **Version controlled**: Grading logic doesn't change between runs
-
-This ensures fair evaluation and allows:
-- Comparing agents across different runs
-- Debugging specific failure modes
-- Building reproducible benchmarks
-
-#### Semantic Normalization
-
-Rather than rigid exact-match grading, the system accepts **semantically equivalent** outputs:
-
-| Agent Output | Accepted As | Why |
-|--------------|------------|-----|
-| `"block_ip"` | `"block_ip"` | Exact match |
-| `"block ip"` | `"block_ip"` | Whitespace normalized |
-| `"block+alert"` | `"block + alert"` | Spacing flexible |
-| `"insider threat"` | `"insider_threat"` | Underscores/spaces equivalent |
-
-This means agents aren't penalized for formatting differences while maintaining determinism.
-
-#### Weighted Component Scoring
-
-Final score = weighted sum of component matches:
-
-```
-allow (0.3) + threat_type (0.3) + response_action (0.2) + firewall_rule (0.2) = 1.0
-```
-
-This means:
-- **Getting threat classification right matters equally with decision quality** (both 0.3)
-- **Structural safety (firewall rules) matters less** (0.2) than classification
-- **Partial credit available**: 3/4 correct → 0.75+ score
-
-### How Models Are Benchmarked
-
-#### Episode-Level Metrics
-
-Each episode (security event) produces:
-- **Score [0.0-1.0]**: Weighted match quality
-- **Success**: Binary indicator (score ≥ 0.8)
-- **Grade details**: Component-by-component breakdown
-
-#### Aggregate-Level Metrics
-
-Across multiple episodes:
-- **Average score**: Mean reward
-- **Success rate**: % of episodes above threshold
-- **Risk level**: Assessment based on consistency and average performance
-- **Confidence**: Statistical confidence (scales with episode count)
-
-#### Risk Level Assessment
-
-```
-Average Score ≥ 0.85 → LOW risk (production-ready)
-Average Score 0.70-0.84 → MEDIUM risk (needs improvement)
-Average Score < 0.70 → HIGH risk (not deployment-ready)
-```
-
-#### Variance Analysis
-
-High variance (inconsistent performance) is flagged because:
-- Production needs reliable agents, not lucky guesses
-- Inconsistency suggests overfitting to specific scenarios
-- Real-world threats are diverse; must handle all types
-
-### Example Evaluation Output
-
-```json
-{
-  "average_score": 0.82,
-  "median_score": 0.85,
-  "success_rate": 0.85,
-  "risk_level": "low",
-  "confidence": 0.95,
-  "recommendations": [
-    "Agent demonstrates strong threat detection capability.",
-    "Risk level LOW - suitable for controlled production deployment."
-  ]
-}
-```
-
-### Task Diversity & Complexity Scaling
-
-**Easy** (EVT-001): Clear threat patterns
-- Pattern: High-sensitivity data + export keywords
-- Baseline: ~100% success
-
-**Medium** (EVT-002): Pattern sequence recognition
-- Pattern: Failed logins followed by success
-- Baseline: ~80% success
-
-**Hard** (EVT-003 & EVT-004): Multi-signal interpretation
-- EVT-003: Intrusion with correlated anomalies
-- EVT-004: Insider threat with conflicting signals
-- Baseline: ~30-40% success (requires deeper reasoning)
-
-This scaling allows agents to:
-- Prove basic capability on easy tasks
-- Demonstrate pattern recognition on medium tasks
-- Show nuanced judgment on hard tasks
-
----
-
-## Architecture
-
-### System Components
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  AI Agent (LLM-based or custom)                             │
-│  - Receives security events                                 │
-│  - Analyzes logs and patterns                               │
-│  - Generates security decisions                             │
-└────────────────────┬────────────────────────────────────────┘
-                     │
-                     │ action: {allow, threat_type, response_action}
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│  OpenEnv Environment (AiSecurityEnv)                        │
-│  - Manages security events                                  │
-│  - Validates agent responses                                │
-│  - Computes rewards [0.0, 1.0]                              │
-└────────────────────┬────────────────────────────────────────┘
-                     │
-                     │ observation, reward, done, info
-                     ▼
-┌─────────────────────────────────────────────────────────────┐
-│  Grading Engine (Deterministic)                             │
-│  - Exact-match comparison vs expected output                │
-│  - Weighted scoring (allow, threat_type, response, rules)   │
-│  - Structured feedback                                      │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### File Structure
-
-```
-ai-security-openenv/
-├── environment.py        # OpenEnv environment implementation
-├── tasks.py              # Task definitions & grading engine
-├── inference.py          # Baseline agent & LLM adapter
-├── openenv.yaml          # Configuration & metadata
-├── Dockerfile            # Container image
-├── requirements.txt      # Python dependencies
-├── README.md             # This file
-└── LICENSE               # MIT License
-```
-
----
-
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.8+
-- Docker (for containerized deployment)
-- pip or conda
-
-### Local Installation
-
-```bash
-# Clone repository
-git clone https://github.com/mveekshan1/ai-security-openenv.git
-cd ai-security-openenv
-
-# Create virtual environment (optional but recommended)
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Verify installation
-python -c "from environment import AiSecurityEnv; print('✓ Installation successful')"
-```
-
-### Docker Setup
-
-```bash
-# Build image
-docker build -t ai-security-env .
-
-# Run container (CLI-based, no HTTP server)
-docker run ai-security-env python inference.py
-
-# Interactive mode
-docker run -it ai-security-env python -m inference --mode baseline
-```
-
-Note: This environment is CLI-based and does not expose an HTTP API by default.
-
-### HuggingFace Spaces Deployment
-
-1. Create new Spaces repository on HuggingFace
-2. Push this directory to the Spaces repo
-3. Set runtime to CPU or GPU
-4. Spaces will auto-detect and deploy the Dockerfile
-
----
-
-## Usage
-
-### Quick Start: Run Baseline Agent
-
-```bash
-# Single episode
-python inference.py --mode baseline
-
-# Benchmark (10 episodes)
-python inference.py --mode benchmark --episodes 10
-```
-
-### Example: Integration with your Agent
+The environment presents each security event as a structured dictionary containing:
 
 ```python
-from environment import AiSecurityEnv
-import json
-
-# Initialize environment
-env = AiSecurityEnv(seed=42)
-
-# Reset and get initial state
-state = env.reset()
-print(json.dumps(state, indent=2))
-
-# Your agent generates action
-action = {
-    "allow": False,
-    "threat_type": "data_exfiltration",
-    "response_action": "block"
+{
+    "event_id": str,              # Unique identifier (e.g., "EVT-001")
+    "logs": List[str],            # Security event details and logs
+    "user_role": str,             # Role of user involved (employee, admin, unknown)
+    "data_sensitivity": str,      # Classification level (low, medium, high)
+    "status": str,                # Event status (open, closed, escalated)
+    "decision": Optional[Dict]    # Previous decision if any
 }
-
-# Step in environment
-observation, reward, done, info = env.step(action)
-
-print(f"Reward: {reward}")
-print(f"Grade: {info['grade']}")
-print(f"Done: {done}")
 ```
 
-### Example: Using LLM-based Agent
+The agent receives complete information needed to make a decision but must reason under uncertainty (e.g., unknown IP reputation, incomplete user history).
+
+### Action
+
+The agent responds with a structured action dictionary:
 
 ```python
-from inference import LLMAgentAdapter
-
-# Initialize LLM agent (requires OPENAI_API_KEY)
-agent = LLMAgentAdapter(model="gpt-4")
-
-# Run episode with LLM decision-making
-result = agent.run_episode_with_llm()
-
-print(f"Success: {result['success']}")
-print(f"Reward: {result['reward']}")
-```
-
-## 📊 Example Output
-
-```json
 {
-  "average_score": 0.77,
-  "success_rate": 0.70,
-  "risk_level": "medium"
+    "allow": bool,                    # True to allow, False to block
+    "threat_type": str,               # Classification (e.g., "data_exfiltration", "brute_force")
+    "response_action": str,           # Action taken (e.g., "block", "block + alert", "monitor")
+    "firewall_rule": Optional[Dict],  # Optional firewall configuration if action is block
+    "severity": Optional[str]         # Optional severity indicator
 }
 ```
 
----
+### Observation
 
-## Task Descriptions
+After each step, the environment returns:
 
-### Task 1: Data Leakage Prevention (Easy)
+```python
+observation    # Updated state (Dict[str, Any])
+reward         # Score [0.0, 1.0] based on grading
+done           # Boolean indicating episode completion (always True for single-step events)
+info           # Metadata dictionary containing:
+               # - "grade": Detailed grading breakdown
+               # - "expected_output": Correct answer
+               # - "feedback": Human-readable explanation
+```
 
-**Objective**: Detect and block unauthorized data exfiltration attempts
+### Termination
+
+Episodes are single-step (one event → one decision):
+
+1. Environment presents a security event via `reset()`
+2. Agent analyzes and generates response via `step(action)`
+3. Environment grades response and returns reward
+4. Episode terminates (done=True)
+
+This single-step design reflects real SOC workflows where decisions must be made immediately upon alert arrival.
+
+## Tasks
+
+### Task 1 — Data Leakage Prevention (Easy)
+
+**Objective**: Detect and block unauthorized data exfiltration
 
 **Input**:
 ```
@@ -335,11 +99,12 @@ Event ID: EVT-001
 User Role: employee
 Data Sensitivity: HIGH
 Logs:
-  - User initiated data export
-  - 2GB data transfer to external IP: 203.0.113.10
+  - User initiated data export (2GB)
+  - Detected transfer to external IP 203.0.113.10
+  - Transfer destination unknown
 ```
 
-**Expected Agent Output**:
+**Expected Output**:
 ```json
 {
   "allow": false,
@@ -348,15 +113,13 @@ Logs:
 }
 ```
 
-**Grading**: 100% if all fields match expected output
-
-**Difficulty**: Easy (straightforward threat pattern)
+**Grading**: Boolean match on all components (0.0 = any mismatch, 1.0 = perfect match)
 
 ---
 
-### Task 2: Threat Detection - Brute Force (Medium)
+### Task 2 — Brute Force Detection (Medium)
 
-**Objective**: Identify brute-force login attack and implement rate limiting
+**Objective**: Identify brute-force authentication attack and implement containment
 
 **Input**:
 ```
@@ -364,35 +127,33 @@ Event ID: EVT-002
 User Role: unknown
 Data Sensitivity: MEDIUM
 Logs:
-  - Failed login attempt from 192.168.1.50 (attempt 1/3)
-  - Failed login attempt from 192.168.1.50 (attempt 2/3)
-  - Failed login attempt from 192.168.1.50 (attempt 3/3)
+  - Failed login attempt 1/3 from 192.168.1.50
+  - Failed login attempt 2/3 from 192.168.1.50
+  - Failed login attempt 3/3 from 192.168.1.50
   - Successful login from 192.168.1.50 after failed attempts
 ```
 
-**Expected Agent Output**:
+**Expected Output**:
 ```json
 {
   "allow": false,
   "threat_type": "brute_force",
   "response_action": "block_ip",
   "firewall_rule": {
-    "rule_action": "block",
+    "action": "block",
     "target": "ip",
     "duration": "1h"
   }
 }
 ```
 
-**Grading**: Weighted scoring (0.3 + 0.3 + 0.2 + 0.2 = 1.0)
-
-**Difficulty**: Medium (requires pattern recognition + structured output)
+**Grading**: Weighted component matching (allow: 0.3, threat_type: 0.3, response_action: 0.2, firewall_rule: 0.2)
 
 ---
 
-### Task 3: Advanced Threat Response - Intrusion Detection (Hard)
+### Task 3 — Intrusion Response (Hard)
 
-**Objective**: Identify multi-stage intrusion attack with correlated anomalies
+**Objective**: Identify multi-stage intrusion with correlated anomalies
 
 **Input**:
 ```
@@ -400,21 +161,21 @@ Event ID: EVT-003
 User Role: admin
 Data Sensitivity: HIGH
 Logs:
-  - Unusual data transfer volume: 50GB in 5 minutes (5x baseline)
-  - Access from unknown IP 203.0.113.45 (reputation: unknown)
-  - Admin login at 02:30 UTC (outside business hours - anomaly)
-  - Database query on sensitive_customers table (rare access pattern)
-  - Concurrent connection from multiple IPs (potential lateral movement)
+  - Unusual data volume: 50GB in 5 minutes (5x baseline)
+  - Login from unknown IP 203.0.113.45
+  - Admin access at 02:30 UTC (outside business hours)
+  - Database query on sensitive_customers table (rare pattern)
+  - Concurrent connections from multiple IPs (possible lateral movement)
 ```
 
-**Expected Agent Output**:
+**Expected Output**:
 ```json
 {
   "allow": false,
   "threat_type": "intrusion",
   "response_action": "block + alert",
   "firewall_rule": {
-    "rule_action": "block",
+    "action": "block",
     "target": "ip",
     "duration": "24h"
   },
@@ -422,33 +183,30 @@ Logs:
 }
 ```
 
-**Grading**: Weighted scoring + multi-factor anomaly analysis
-
-**Difficulty**: Hard (requires correlation of multiple signals)
+**Grading**: Multi-factor analysis with weighted components, emphasis on correlation detection
 
 ---
 
-### Task 4: Insider Threat Detection - Anomalous Privileged Access (Hard)
+### Task 4 — Insider Threat Detection (Advanced)
 
-**Objective**: Distinguish legitimate from malicious insider activity with conflicting signals
+**Objective**: Distinguish malicious from legitimate insider activity under conflicting signals
 
 **Input**:
 ```
 Event ID: EVT-004
 User Role: finance_manager
 Data Sensitivity: HIGH
-Context: John Smith, Finance Manager, 3-year tenure, clean record, recent security training
+Context: 3-year tenure, clean history, recent security training
 Logs:
   - Successful login from usual office IP 10.0.1.150 at 09:15 UTC
-  - Legitimate business need: Accessed HR_salaries.xlsx
-  - ANOMALY: File accessed at 02:30 UTC (outside business hours)
-  - ANOMALY: Downloaded 2.3GB financial data to personal Dropbox
-  - MITIGATING: User recently passed security awareness training
-  - CONTEXT: Recent layoffs announced in finance (possible motive)
-  - HISTORY: Clean background check, bonded employee, no prior anomalies
+  - Legitimate access: HR_salaries.xlsx
+  - ANOMALY: File accessed at 02:30 UTC (outside hours)
+  - ANOMALY: 2.3GB financial data downloaded to personal Dropbox
+  - CONTEXT: Recent layoffs announced (possible motive)
+  - HISTORY: Clean background check, bonded, no prior incidents
 ```
 
-**Expected Agent Output**:
+**Expected Output**:
 ```json
 {
   "allow": false,
@@ -456,380 +214,266 @@ Logs:
   "response_action": "block + alert",
   "severity": "medium",
   "confidence": "high",
-  "reasoning": "Despite clean history and legitimate access, off-hours access combined with exfiltration to personal cloud storage indicates potential insider threat. Recommend investigation.",
-  "firewall_rule": {
-    "rule_action": "block",
-    "target": "endpoint",
-    "duration": "12h"
-  }
+  "reasoning": "Despite clean history and legitimate file access, off-hours access combined with exfiltration to unmanaged storage indicates potential threat. Recommend investigation."
 }
 ```
 
-**Grading**: Weighted scoring evaluation requires balancing conflicting signals
-
-**Difficulty**: Hard (requires nuanced decision-making under ambiguity)
-
-**Challenge**: 
-- Valid user with clean history (suggests allow)
-- Legitimate file access (suggests allow)
-- Off-hours access + cloud upload (suggests block)
-- Recent training but possible motive (conflicting signals)
-
-**Why This Matters**: Real SOCs constantly face these ambiguous decisions. This task tests whether AI can make security decisions when no "obvious" answer exists.
+**Grading**: Nuanced multi-factor analysis requiring balancing conflicting signals
 
 ---
 
 ## Grading Logic
 
-### Scoring Mechanism
+### Scoring System
 
-The environment uses **deterministic grading with semantic normalization** and weighted components:
+All grading is deterministic and transparent. Each task component is scored independently and combined via weighted averaging.
 
-| Component | Weight | Details |
-|-----------|--------|---------|
-| `allow` | 0.3 | Allow/block decision (strict boolean match) |
-| `threat_type` | 0.3 | Threat classification accuracy (semantically normalized) |
-| `response_action` | 0.2 | Recommended security action (semantically normalized) |
+**Component Weights**:
+| Component | Weight | Criteria |
+|-----------|--------|----------|
+| `allow` | 0.3 | Strict boolean (allowed/blocked) |
+| `threat_type` | 0.3 | Threat classification accuracy |
+| `response_action` | 0.2 | Recommended security action |
 | `firewall_rule` | 0.2 | Firewall rule correctness (if required) |
 
-**Semantic Normalization**: Accept equivalent formats:
-- `"block_ip"` ≡ `"block ip"` ≡ `"ip_block"` (all normalized to `"block_ip"`)
-- `"block + alert"` ≡ `"block+alert"` ≡ `"block_and_alert"`
-- `"insider_threat"` ≡ `"insider threat"` ≡ `"insiderthreat"`
+**Semantic Normalization**:
+- `"block_ip"` ≈ `"block ip"` ≈ `"ip_block"` (all normalized to canonical form)
+- `"insider_threat"` ≈ `"insider threat"` ≈ `"insiderthreat"`
+- Whitespace and punctuation are normalized; semantics are strict
 
-**Final Score**: Weighted sum of component scores, clamped to [0.0, 1.0]
+**Partial Scoring**:
+- Getting 3 of 4 components correct yields 0.75 score (75%)
+- Weighted components: classification accuracy (0.3) weighted equal to decision (0.3)
+- Firewall rules weighted lower (0.2) as they are secondary to core decision
 
-### Reward Function
+### Reward Calculation
 
 ```
 reward = score - step_penalty
-
-score = Σ(component_score × weight)
-step_penalty = max(0, (step_number - 1) × 0.05)
+score = weighted_sum(component_scores)
+step_penalty = 0 (single-step episodes)
 ```
 
-### Example Grading
-
-**Perfect Match**:
-- `allow` match: 1.0 × 0.3 = 0.30
-- `threat_type` match: 1.0 × 0.3 = 0.30
-- `response_action` match: 1.0 × 0.2 = 0.20
-- `firewall_rule` match: 1.0 × 0.2 = 0.20
-- **Total**: 1.0 (Perfect!)
-
-**Partial Match** (e.g., wrong threat_type):
-- `allow` match: 1.0 × 0.3 = 0.30
-- `threat_type` mismatch: 0.0 × 0.3 = 0.00
-- `response_action` match: 1.0 × 0.2 = 0.20
-- `firewall_rule` match: 1.0 × 0.2 = 0.20
-- **Total**: 0.7 (70%)
-
-**No Match**:
-- All components mismatch: 0.0
-
-### Step Penalty
-
-Agent is penalized for inefficiency:
-- Step 1: no penalty
-- Step 2: -0.05
-- Step 3: -0.10
-- etc.
+Perfect match: reward = 1.0
+Three components correct: reward = 0.75
+One component correct: reward ≤ 0.4
 
 ---
 
-## Deployment
+## Reward System
 
-### Docker Build & Run
+### Reward Function
+
+Each episode generates a reward in range [0.0, 1.0]:
+
+- **1.0**: Perfect match on all components
+- **0.75**: 3/4 components correct
+- **0.50**: 2/4 components correct or major decision error with correct threat type
+- **0.25**: 1/4 components correct
+- **0.0**: No components correct or critical decision failure
+
+### Penalties
+
+- **Decision Reversal**: Blocking safe traffic or allowing threats incurs highest penalty
+- **Classification Error**: Incorrect threat typing reduces score but does not eliminate reward if action is appropriate
+- **Incomplete Response**: Missing required components (e.g., firewall rule when needed) fails that component
+
+### Aggregation
+
+Over multiple episodes:
+- **Average Reward**: Mean score across all episodes
+- **Success Rate**: Percentage of episodes scoring ≥0.8
+- **Risk Level**:
+  - LOW: average_reward ≥ 0.85 (production-ready)
+  - MEDIUM: average_reward 0.70-0.84 (needs improvement)
+  - HIGH: average_reward < 0.70 (not deployment-ready)
+
+---
+
+## Project Structure
+
+```
+ai-security-openenv/
+├── environment.py           # OpenEnv environment (AiSecurityEnv class)
+├── tasks.py                 # Task definitions and grading engine
+├── inference.py             # Baseline agent and evaluation utilities
+├── app.py                   # Gradio interface for dashboard
+├── openenv.yaml             # Configuration and metadata
+├── Dockerfile               # Container configuration
+├── requirements.txt         # Python dependencies
+└── README.md                # This documentation
+```
+
+---
+
+## Setup Instructions
+
+### Local Setup
+
+**Prerequisites**: Python 3.8+, pip
 
 ```bash
-# Build
-docker build -t ai-security-env .
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify installation
+python -c "from environment import AiSecurityEnv; print('Installation successful')"
+```
+
+### Docker
+
+**Prerequisites**: Docker
+
+```bash
+# Build image
+docker build -t ai-security-openenv .
+
+# Run evaluation
+docker run ai-security-openenv python inference.py
 
 # Run with custom parameters
-docker run -it ai-security-env python inference.py --mode benchmark --episodes 20
-
-# Run as service (CLI-based, no HTTP server)
-docker run -d --name security-env ai-security-env python inference.py
+docker run ai-security-openenv python inference.py --mode benchmark --episodes 10
 ```
-
-### HuggingFace Spaces
-
-Spaces automatically detects the Dockerfile and deploys. Access via:
-```
-https://huggingface.co/spaces/your-username/ai-security-openenv
-```
-
-Features:
-- Auto-rebuilds on push
-- HTTP endpoint for API calls
-- GPU/CPU resource options
-- Public sharing & embedding
-
-### AWS/GCP/Azure Deployment
-
-The Dockerfile is compatible with:
-- **AWS**: ECR + ECS/Fargate
-- **GCP**: Cloud Run, Compute Engine
-- **Azure**: Container Instances, Web App for Containers
-- **Kubernetes**: Direct deployment
 
 ---
 
-## API Reference
+## Usage
 
-### Environment Methods
+### Running the Dashboard
 
-#### `reset() -> Dict[str, Any]`
-
-Initialize a new episode with a random security event.
-
-**Returns**:
-```python
-{
-    "event_id": "EVT-001",
-    "logs": ["User initiated data export", "2GB transfer..."],
-    "user_role": "employee",
-    "data_sensitivity": "high",
-    "status": "open",
-    "decision": None
-}
+```bash
+python app.py
 ```
 
-#### `step(action: Dict[str, Any]) -> Tuple[Dict, float, bool, Dict]`
+Visit `http://localhost:7860` to access the Gradio web interface. The dashboard displays:
+- Live security event with full context
+- Agent decision breakdown
+- Metrics (average reward, success rate, risk level)
+- Execution output with detailed grading
 
-Execute agent action and return environment response.
+### Running Evaluation
 
-**Parameters**:
+```bash
+# Run baseline agent benchmark
+python inference.py --mode benchmark --episodes 10
+
+# Output includes average reward, success rate, and risk assessment
+```
+
+### Programmatic Usage
+
 ```python
+from environment import AiSecurityEnv
+
+# Initialize environment
+env = AiSecurityEnv(seed=42)
+
+# Get security event
+state = env.reset()
+
+# Generate action (your agent)
 action = {
-    "allow": bool,
-    "threat_type": str,
-    "response_action": str,
-    "firewall_rule": {...}  # optional
+    "allow": False,
+    "threat_type": state.get("detected_threat"),
+    "response_action": "block"
 }
-```
 
-**Returns**:
-```python
+# Execute and receive grade
 observation, reward, done, info = env.step(action)
 
-# observation: Current state (Dict)
-# reward: Score [0.0, 1.0] (float)
-# done: Episode complete (bool)
-# info: Grading details (Dict)
-```
-
-### Grading Engine
-
-#### `GradingEngine.grade(task, output) -> Dict`
-
-Grade agent output against expected results.
-
-**Returns**:
-```python
-{
-    "score": 0.85,
-    "reward": 0.85,
-    "details": {
-        "allow": {"expected": False, "actual": False, "score": 1.0},
-        "threat_type": {...},
-        "response_action": {...},
-        "firewall_rule": {...}
-    },
-    "passed": True,
-    "feedback": "✓ Excellent! All critical fields matched..."
-}
+print(f"Reward: {reward}")
+print(f"Grade Details: {info['grade']}")
 ```
 
 ---
 
-## Baseline Performance
+## Inference
 
-**Baseline Agent**: Pattern-matching heuristic with insider threat detection support
+The inference module provides:
 
-**Performance Metrics** (4-task evaluation):
-- Success Rate: **~70–80%** (3/5 episodes in typical benchmark)
-- Average Reward: **~0.75–0.80**
-- Min Reward: 0.50
-- Max Reward: 1.0
+1. **Baseline Agent**: Pattern-matching heuristic for threat detection
+2. **LLM Adapter**: Template for integrating OpenAI-compatible models
+3. **Evaluation Harness**: Runs multiple episodes and aggregates metrics
 
-**Per-Task Performance**:
+**Configuration**:
 ```
-Episode with EVT-001 (Data Leakage, Easy)     → Reward: 1.0 ✓
-Episode with EVT-002 (Brute Force, Medium)    → Reward: 0.8 ✓
-Episode with EVT-003 (Intrusion, Hard)        → Reward: 0.7  (multi-signal detection partial)
-Episode with EVT-001 (Data Leakage, Easy)     → Reward: 1.0 ✓
-Episode with EVT-004 (Insider Threat, Hard)   → Reward: 0.5  (conflicting signals challenging)
-
-Average: 0.80
+API_BASE_URL: LLM endpoint (default: OpenAI)
+MODEL_NAME: Model identifier (default: gpt-4)
 ```
 
-**Key Insights**:
-- **Easy tasks**: Baseline achieves near-perfect performance (1.0)
-- **Medium tasks**: Good performance on pattern sequences (0.9)
-- **Hard tasks**: Significant challenge on multi-signal correlation (0.3-0.6)
-- **Insider threat**: Lowest performance, indicating genuine difficulty with ambiguous signals
+The baseline agent uses deterministic pattern matching and achieves 70-80% average reward, establishing a clear performance baseline.
 
 ---
 
-## Validation Checklist
+## Hugging Face Deployment
 
-- ✓ **Minimum 4 tasks** with increasing difficulty (easy, medium, hard, hard)
-- ✓ **Deterministic grading** (exact-match + semantic normalization, reproducible scores)
-- ✓ **Semantic normalization** (flexible formatting, rigid semantics)
-- ✓ **Non-constant rewards** (variable scores: 0.3-1.0 across episodes)
-- ✓ **OpenEnv API compliance** (reset, step, state)
-- ✓ **Docker buildable** (Dockerfile works without modifications)
-- ✓ **Inference executable** (baseline agent runs out-of-box with evaluation summary)
-- ✓ **GitHub ready** (complete project structure, documented)
-- ✓ **Evaluation summary** (metrics, risk levels, recommendations)
+This project is configured for automatic deployment on Hugging Face Spaces.
+
+**Deployment Steps**:
+1. Create new Spaces repository on huggingface.co
+2. Push this repository to Spaces
+3. Spaces automatically detects the Dockerfile and builds the image
+4. Application becomes available at `huggingface.co/spaces/your-username/ai-security-openenv`
+
+**Features**:
+- Gradio web interface accessible immediately
+- Automatic rebuilds on repository updates
+- Public sharing link for evaluation
 
 ---
 
-## Development & Extension
+## Evaluation
 
-### Adding Custom Tasks
+### Deterministic Grading
+
+All evaluations are fully deterministic:
+- Same input → Same output (guaranteed)
+- No randomness in grading logic
+- Reproducible across runs (use seed=42 for environment)
+
+### Reproducibility
+
+Set seed for reproducible scenario selection:
 
 ```python
-# tasks.py
-from tasks import TaskDefinition, TASKS
-
-new_task = TaskDefinition(
-    name="Custom Task",
-    difficulty=TaskDifficulty.MEDIUM,
-    description="Your task description",
-    event_id="EVT-004",
-    logs=["log entry 1", "log entry 2"],
-    user_role="admin",
-    data_sensitivity="high",
-    expected_output={
-        "allow": False,
-        "threat_type": "custom_threat",
-        "response_action": "custom_action"
-    }
-)
-
-TASKS["custom_task"] = new_task
+env = AiSecurityEnv(seed=42)
 ```
 
-### Implementing Custom Agents
+With identical seed, the environment generates identical scenarios in identical order.
 
-```python
-from environment import AiSecurityEnv
+### Difficulty Scaling
 
-class MyCustomAgent:
-    def __init__(self):
-        self.env = AiSecurityEnv()
-    
-    def run(self):
-        state = self.env.reset()
-        # Your agent logic here
-        action = self._decide(state)
-        obs, reward, done, info = self.env.step(action)
-        return reward
-    
-    def _decide(self, state):
-        # Your decision logic
-        return {
-            "allow": False,
-            "threat_type": "detected_threat",
-            "response_action": "recommended_action"
-        }
-```
+- **Easy**: Single clear threat signal (Data Leakage)
+- **Medium**: Pattern recognition required (Brute Force sequence)
+- **Hard**: Multi-factor analysis, conflicting signals (Intrusion, Insider Threat)
 
-### Using LLM APIs
-
-See [inference.py](inference.py#L126) for the `LLMAgentAdapter` template.
-
-Supported providers:
-- OpenAI (GPT-4, GPT-3.5-turbo)
-- Anthropic (Claude 3)
-- HuggingFace (Llama, Mistral)
-- Custom API endpoints
+Baseline agent performance: Easy 100%, Medium 80%, Hard 30-40%
 
 ---
 
-## Troubleshooting
+## Limitations
 
-### Issue: Import errors when running locally
-
-```bash
-# Ensure you're in the project directory
-cd ai-security-openenv
-
-# Reinstall dependencies
-pip install --force-reinstall -r requirements.txt
-
-# Verify environment
-python -c "from environment import AiSecurityEnv; print('OK')"
-```
-
-### Issue: Docker build fails
-
-```bash
-# Clean build
-docker build --no-cache -t ai-security-env .
-
-# Check logs
-docker logs ai-security-env
-```
-
-### Issue: Reproducibility problems
-
-Set random seed in your code:
-```python
-from environment import AiSecurityEnv
-
-env = AiSecurityEnv(seed=42)  # Reproducible
-```
+1. **Simulated Environment**: Scenarios are rule-generated, not from production systems
+2. **Static Rules**: No real-time threat intelligence or external data feeds
+3. **Baseline Agent**: Pattern-matching only; no learning or adaptation
+4. **Predefined Tasks**: Limited to four task templates; extensible but not dynamically sourced
 
 ---
 
-## Contributing
+## Future Improvements
 
-Contributions welcome! Areas for enhancement:
-
-- Additional threat scenario tasks
-- LLM baseline implementations (GPT-4, Claude)
-- Performance optimizations
-- Documentation improvements
-- Custom grading strategies
-
-Please open issues and pull requests on GitHub.
-
----
-
-## Citation
-
-If you use this environment in research, please cite:
-
-```bibtex
-@software{ai_security_openenv_2024,
-  title={AI Security Policy Enforcement & Firewall Optimization},
-  author={OpenEnv Contributors},
-  year={2024},
-  url={https://github.com/mveekshan1/ai-security-openenv},
-  note={OpenEnv Environment for Cybersecurity AI Evaluation}
-}
-```
+- Extended threat scenario library (APT indicators, zero-days)
+- Multi-agent comparative evaluation
+- Integration with real threat intelligence feeds
+- REST API for remote evaluation
+- Advanced visualization and reporting
 
 ---
 
 ## License
 
-MIT License © 2024 OpenEnv Security Project Contributors
-
-See [LICENSE](LICENSE) for details.
-
----
-
-## Support
-
-- **Documentation**: See sections above
-- **Issues**: GitHub Issues on repository
-- **Discussions**: GitHub Discussions
-- **Contact**: security@example.com
-
----
-
-**Version**: 1.0.0 | **Last Updated**: April 2026 | **OpenEnv**: 1.0+
+MIT License
