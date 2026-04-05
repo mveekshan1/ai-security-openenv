@@ -3,7 +3,6 @@ Simple Flask server for testing OpenEnv API compliance.
 """
 from flask import Flask, jsonify, request
 from environment import AiSecurityEnv
-import json
 
 app = Flask(__name__)
 
