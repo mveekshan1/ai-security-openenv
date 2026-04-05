@@ -15,6 +15,7 @@ COPY tasks.py .
 COPY inference.py .
 COPY openenv.yaml .
 COPY README.md .
+COPY server.py .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -30,5 +31,5 @@ ENV OPENENV_ENV=production
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "from environment import AiSecurityEnv; env = AiSecurityEnv(); env.reset(); print('OK')" || exit 1
 
-# Default command: run inference
-CMD ["python", "inference.py"]
+# Default command: run the OpenEnv server for validation and HF Spaces deployment
+CMD ["python", "server.py"]

@@ -401,7 +401,7 @@ print(f"Grade Details: {info['grade']}")
 
 ## API Testing
 
-For OpenEnv compliance testing, a Flask server is provided to test the API endpoints independently:
+For OpenEnv compliance testing, a FastAPI server is provided to test the API endpoints independently:
 
 ```bash
 # Start the test server

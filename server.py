@@ -15,7 +15,7 @@ async def reset() -> Dict[str, Any]:
     """Reset the environment and return initial state."""
     try:
         state = env.reset()
-        return state
+        return {"observation": state}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -40,7 +40,7 @@ async def get_state() -> Dict[str, Any]:
     """Get current environment state."""
     try:
         state = env.state()
-        return state
+        return {"observation": state}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
