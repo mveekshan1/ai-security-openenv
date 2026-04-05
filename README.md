@@ -24,10 +24,11 @@ This environment provides a controlled benchmark for measuring AI capability in 
 AI Security OpenEnv addresses this problem through:
 
 1. **Deterministic Environment**: Each security event is reproducible, enabling fair agent comparison
-2. **Graded Complexity**: Tasks range from obvious threats (easy) to cases with conflicting signals (hard)
-3. **Structured Evaluation**: Weighted scoring across decision components (allow/block, threat classification, response action, firewall rules)
-4. **Semantic Flexibility**: Accepts equivalent formatting while maintaining strict semantic requirements
-5. **Production Realism**: Security events mirror real SOC alerts with logs, anomalies, and context
+2. **Dynamic Scenario Generation**: Generates randomized threat scenarios with varying complexity levels (easy, medium, hard)
+3. **Graded Complexity**: Tasks range from obvious threats (easy) to cases with conflicting signals (hard)
+4. **Structured Evaluation**: Weighted scoring across decision components (allow/block, threat classification, response action, firewall rules)
+5. **Semantic Flexibility**: Accepts equivalent formatting while maintaining strict semantic requirements
+6. **Production Realism**: Security events mirror real SOC alerts with logs, anomalies, and context
 
 ## Environment Design
 
@@ -298,9 +299,13 @@ ai-security-openenv/
 ├── tasks.py                 # Task definitions and grading engine
 ├── inference.py             # Baseline agent and evaluation utilities
 ├── app.py                   # Gradio interface for dashboard
+├── server.py                # Flask server for API testing
 ├── openenv.yaml             # Configuration and metadata
 ├── Dockerfile               # Container configuration
 ├── requirements.txt         # Python dependencies
+├── test_dynamic.py          # Tests for dynamic scenario generation
+├── test_grading.py          # Tests for grading functionality
+├── LICENSE                  # MIT License
 └── README.md                # This documentation
 ```
 
@@ -369,8 +374,11 @@ python inference.py --mode benchmark --episodes 10
 ```python
 from environment import AiSecurityEnv
 
-# Initialize environment
-env = AiSecurityEnv(seed=42)
+# Initialize environment with dynamic scenarios
+env = AiSecurityEnv(seed=42, use_dynamic=True)
+
+# Or use static scenarios for reproducibility
+# env = AiSecurityEnv(seed=42, use_dynamic=False)
 
 # Get security event
 state = env.reset()
@@ -391,6 +399,31 @@ print(f"Grade Details: {info['grade']}")
 
 ---
 
+## API Testing
+
+For OpenEnv compliance testing, a Flask server is provided to test the API endpoints independently:
+
+```bash
+# Start the test server
+python server.py
+
+# Test reset endpoint
+curl -X POST http://localhost:8000/reset
+
+# Test step endpoint
+curl -X POST http://localhost:8000/step \
+  -H "Content-Type: application/json" \
+  -d '{"action": {"allow": false, "threat_type": "data_exfiltration", "response_action": "block"}}'
+```
+
+**Endpoints**:
+- `POST /reset` - Reset environment and get initial state
+- `POST /step` - Execute action and get environment response
+- `GET /state` - Get current environment state
+- `GET /health` - Health check
+
+---
+
 ## Inference
 
 The inference module provides:
@@ -398,14 +431,16 @@ The inference module provides:
 1. **Baseline Agent**: Pattern-matching heuristic for threat detection
 2. **LLM Adapter**: Template for integrating OpenAI-compatible models
 3. **Evaluation Harness**: Runs multiple episodes and aggregates metrics
+4. **Dynamic Scenario Support**: Environment can generate randomized scenarios or use predefined static tasks
 
 **Configuration**:
 ```
 API_BASE_URL: LLM endpoint (default: OpenAI)
 MODEL_NAME: Model identifier (default: gpt-4)
+use_dynamic: Enable dynamic scenario generation (default: True)
 ```
 
-The baseline agent uses deterministic pattern matching and achieves 70-80% average reward, establishing a clear performance baseline.
+The baseline agent uses deterministic pattern matching and achieves 70-80% average reward, establishing a clear performance baseline. Dynamic scenarios provide unlimited variety while maintaining deterministic grading.
 
 ---
 
@@ -451,6 +486,8 @@ With identical seed, the environment generates identical scenarios in identical 
 - **Medium**: Pattern recognition required (Brute Force sequence)
 - **Hard**: Multi-factor analysis, conflicting signals (Intrusion, Insider Threat)
 
+**Dynamic Scenarios**: Set `use_dynamic=True` for unlimited randomized scenarios, or `use_dynamic=False` for reproducible static tasks.
+
 Baseline agent performance: Easy 100%, Medium 80%, Hard 30-40%
 
 ---
@@ -460,15 +497,16 @@ Baseline agent performance: Easy 100%, Medium 80%, Hard 30-40%
 1. **Simulated Environment**: Scenarios are rule-generated, not from production systems
 2. **Static Rules**: No real-time threat intelligence or external data feeds
 3. **Baseline Agent**: Pattern-matching only; no learning or adaptation
-4. **Predefined Tasks**: Limited to four task templates; extensible but not dynamically sourced
+4. **Scenario Variety**: While dynamic generation provides unlimited scenarios, they follow predefined patterns rather than truly novel threats
 
 ---
 
 ## Future Improvements
 
-- Extended threat scenario library (APT indicators, zero-days)
+- Extended threat scenario library (APT indicators, zero-days, insider threats)
 - Multi-agent comparative evaluation
 - Integration with real threat intelligence feeds
+- Enhanced dynamic scenario generation with more complex patterns
 - REST API for remote evaluation
 - Advanced visualization and reporting
 
