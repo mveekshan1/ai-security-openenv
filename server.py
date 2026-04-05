@@ -1,9 +1,13 @@
 """
 Simple FastAPI server for testing OpenEnv API compliance.
 """
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from pydantic import BaseModel
 from typing import Dict, Any
-from environment import AiSecurityEnv
+from environment import AiSecurityEnv, ActionModel
+
+class StepRequest(BaseModel):
+    action: ActionModel
 
 app = FastAPI()
 
@@ -20,11 +24,10 @@ async def reset() -> Dict[str, Any]:
         return {"status": "error", "message": str(e)}
 
 @app.post("/step")
-async def step(request: Request) -> Dict[str, Any]:
+async def step(step_request: StepRequest) -> Dict[str, Any]:
     """Execute a step in the environment."""
     try:
-        body = await request.json()
-        action = body.get("action", {})
+        action: ActionModel = step_request.action
         observation, reward, done, info = env.step(action)
         return {
             "observation": observation,

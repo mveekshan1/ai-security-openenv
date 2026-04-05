@@ -363,10 +363,10 @@ Visit `http://localhost:7860` to access the Gradio web interface. The dashboard 
 ### Running Evaluation
 
 ```bash
-# Run baseline agent benchmark
-python inference.py --mode benchmark --episodes 10
+# Run baseline agent evaluation
+python inference.py
 
-# Output includes average reward, success rate, and risk assessment
+# Output includes per-task [START]/[STEP]/[END] logs and reward summaries
 ```
 
 ### Programmatic Usage

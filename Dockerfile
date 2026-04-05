@@ -21,8 +21,9 @@ COPY app.py .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port for HF Spaces
+# Expose ports for HF Spaces and API validation
 EXPOSE 7860
+EXPOSE 8000
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1

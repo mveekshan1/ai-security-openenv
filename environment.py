@@ -2,10 +2,13 @@
 OpenEnv-compliant AI Security Policy Enforcement & Firewall Optimization Environment
 """
 
+from __future__ import annotations
+
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass, asdict
 from enum import Enum
+from pydantic import BaseModel
 
 
 class DataSensitivity(Enum):
@@ -42,17 +45,45 @@ class SecurityEvent:
     user_role: str
     data_sensitivity: str
     status: str = "open"
-    decision: Optional[Dict[str, Any]] = None
+    decision: Optional[Union[Dict[str, Any], ActionModel]] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        decision_value = (
+            self.decision.model_dump()
+            if isinstance(self.decision, ActionModel)
+            else self.decision
+        )
         return {
             "event_id": self.event_id,
             "logs": self.logs,
             "user_role": self.user_role,
             "data_sensitivity": self.data_sensitivity,
             "status": self.status,
-            "decision": self.decision
+            "decision": decision_value
         }
+
+
+class ActionModel(BaseModel):
+    """Typed action model for OpenEnv."""
+    allow: bool
+    threat_type: str
+    response_action: str
+    firewall_rule: Optional[Dict[str, str]] = None
+
+
+class ObservationModel(BaseModel):
+    """Typed observation model for OpenEnv."""
+    event_id: str
+    logs: List[str]
+    user_role: str
+    data_sensitivity: str
+    status: str
+    decision: Optional[Dict[str, Any]] = None
+
+
+class RewardModel(BaseModel):
+    """Typed reward model for OpenEnv."""
+    reward: float
 
 
 class ScenarioGenerator:
@@ -269,7 +300,7 @@ class AiSecurityEnv:
             user_role=scenario["user_role"],
             data_sensitivity=scenario["data_sensitivity"]
         )
-        return self._get_state()
+        return ObservationModel(**self._get_state()).model_dump()
 
     def _get_state(self) -> Dict[str, Any]:
         """Get current state."""
@@ -282,21 +313,15 @@ class AiSecurityEnv:
         Get current state.
         OpenEnv API: state() -> Dict[str, Any]
         """
-        return self._get_state()
+        return ObservationModel(**self._get_state()).model_dump()
 
-    def step(self, action: Dict[str, Any]) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
+    def step(self, action: Union[ActionModel, Dict[str, Any]]) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
         """
         Execute one step in the environment.
         OpenEnv API: step(action) -> (observation, reward, done, info)
 
         Args:
-            action: Dictionary with agent's decision
-                {
-                    "allow": bool,
-                    "threat_type": str,
-                    "response_action": str,
-                    "firewall_rule": {...}  # optional
-                }
+            action: Agent's decision, validated by ActionModel
 
         Returns:
             observation: Current state after action
@@ -306,8 +331,12 @@ class AiSecurityEnv:
         """
         self.step_count += 1
 
+        # Validate and normalize action
+        if not isinstance(action, ActionModel):
+            action = ActionModel(**action)
+
         # Execute grading
-        grade: Dict[str, Any] = self._grade_action(action)
+        grade: Dict[str, Any] = self._grade_action(action.model_dump())
         reward: float = grade["reward"]
         done: bool = (reward == 1.0) or (self.step_count >= self.max_steps)
 
