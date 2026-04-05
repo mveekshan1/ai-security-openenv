@@ -426,21 +426,36 @@ curl -X POST http://localhost:8000/step \
 
 ## Inference
 
-The inference module provides:
+The inference script (`inference.py`) provides baseline evaluation using OpenAI-compatible models:
 
-1. **Baseline Agent**: Pattern-matching heuristic for threat detection
-2. **LLM Adapter**: Template for integrating OpenAI-compatible models
-3. **Evaluation Harness**: Runs multiple episodes and aggregates metrics
-4. **Dynamic Scenario Support**: Environment can generate randomized scenarios or use predefined static tasks
+**Environment Variables** (required):
+- `API_BASE_URL`: LLM API endpoint (default: https://api.openai.com/v1)
+- `MODEL_NAME`: Model identifier (default: gpt-4)  
+- `HF_TOKEN`: API authentication token
 
-**Configuration**:
+**Usage**:
+```bash
+# Set environment variables
+export API_BASE_URL="https://your-endpoint.com/v1"
+export MODEL_NAME="your-model"
+export HF_TOKEN="your-token"
+
+# Run evaluation
+python inference.py
 ```
-API_BASE_URL: LLM endpoint (default: OpenAI)
-MODEL_NAME: Model identifier (default: gpt-4)
-use_dynamic: Enable dynamic scenario generation (default: True)
-```
 
-The baseline agent uses deterministic pattern matching and achieves 70-80% average reward, establishing a clear performance baseline. Dynamic scenarios provide unlimited variety while maintaining deterministic grading.
+The script evaluates the model on all 3 tasks (data_leakage_prevention, threat_detection, advanced_threat_response) and emits structured stdout logs in the required OpenEnv format:
+
+- `[START]`: Episode begin
+- `[STEP]`: Each step with action, reward, done status
+- `[END]`: Episode completion with final score
+
+**Output Format**:
+```
+[START] task=data_leakage_prevention env=ai-security-openenv model=gpt-4
+[STEP] step=1 action={"allow": false, "threat_type": "data_exfiltration"} reward=1.00 done=true error=null
+[END] success=true steps=1 score=1.00 rewards=1.00
+```
 
 ---
 

@@ -157,10 +157,11 @@ class AiSecurityEnv:
     prevents data leakage, and dynamically generates firewall rules.
     """
 
-    def __init__(self, seed: int = 42, use_dynamic: bool = True):
+    def __init__(self, seed: int = 42, use_dynamic: bool = True, task_id: Optional[str] = None):
         """Initialize the environment."""
         self.seed = seed
         self.use_dynamic = use_dynamic
+        self.task_id = task_id
         random.seed(seed)
         self.current_event: Optional[SecurityEvent] = None
         self.current_scenario: Optional[Dict[str, Any]] = None
@@ -181,6 +182,7 @@ class AiSecurityEnv:
             # Static scenarios for reproducibility in testing
             return [
                 {
+                    "id": "data_leakage_prevention",
                     "name": "Data Leakage Prevention",
                     "difficulty": "easy",
                     "event_id": "EVT-001",
@@ -194,6 +196,7 @@ class AiSecurityEnv:
                     }
                 },
                 {
+                    "id": "threat_detection",
                     "name": "Threat Detection",
                     "difficulty": "medium",
                     "event_id": "EVT-002",
@@ -212,6 +215,7 @@ class AiSecurityEnv:
                     }
                 },
                 {
+                    "id": "advanced_threat_response",
                     "name": "Advanced Threat Response",
                     "difficulty": "hard",
                     "event_id": "EVT-003",
@@ -235,6 +239,14 @@ class AiSecurityEnv:
                     }
                 }
             ]
+            
+            # Filter by task_id if provided
+            if self.task_id:
+                scenarios = [s for s in scenarios if s["id"] == self.task_id]
+                if not scenarios:
+                    raise ValueError(f"Task ID '{self.task_id}' not found")
+            
+            return scenarios
 
     def reset(self) -> Dict[str, Any]:
         """

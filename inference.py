@@ -1,53 +1,180 @@
 """
-OpenAI-compatible agent runner for AI Security environment
-Includes evaluation summary and performance metrics.
+Inference Script for AI Security OpenEnv
+=======================================
+
+MANDATORY REQUIREMENTS:
+- Uses OpenAI Client for all LLM calls
+- Reads environment variables: API_BASE_URL, MODEL_NAME, HF_TOKEN
+- Emits structured stdout logs: [START], [STEP], [END]
+- Runs baseline evaluation on all tasks
 """
 
-import json
-from typing import Any, Dict, List, Optional
+import os
+import textwrap
+from typing import List, Optional
+
+from openai import OpenAI
 from environment import AiSecurityEnv
 
+# Environment variables (mandatory)
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 
-class EvaluationSummary:
+# Task configuration
+TASKS = [
+    "data_leakage_prevention",
+    "threat_detection", 
+    "advanced_threat_response"
+]
+
+MAX_STEPS = 8
+TEMPERATURE = 0.7
+MAX_TOKENS = 150
+
+# System prompt for security analysis
+SYSTEM_PROMPT = textwrap.dedent(
     """
-    Structured evaluation summary with performance metrics and risk assessment.
+    You are a cybersecurity analyst responding to security alerts.
+    Analyze the security event and provide a structured response.
+    
+    Event details will be provided. Respond with a JSON object containing:
+    {
+        "allow": boolean (true to allow, false to block),
+        "threat_type": string (threat classification),
+        "response_action": string (action to take),
+        "firewall_rule": optional dict (if blocking)
+    }
+    
+    Threat types: data_exfiltration, brute_force, intrusion, insider_threat, none
+    Response actions: block, block_ip, block + alert, allow, monitor
+    
+    Reply with only the JSON object, no additional text.
     """
+).strip()
 
-    @staticmethod
-    def compute_summary(rewards: List[float], episode_count: int) -> Dict[str, Any]:
-        """
-        Compute structured evaluation summary from episode rewards.
 
-        Args:
-            rewards: List of reward values from episodes
-            episode_count: Total number of episodes
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
 
-        Returns:
-            {
-                "task_scores": [float],
-                "average_score": float,
-                "median_score": float,
-                "success_rate": float,
-                "risk_level": "low|medium|high",
-                "confidence": float,
-                "recommendations": [str]
-            }
-        """
-        if not rewards:
-            return {
-                "task_scores": [],
-                "average_score": 0.0,
-                "median_score": 0.0,
-                "success_rate": 0.0,
-                "risk_level": "high",
-                "confidence": 0.0,
-                "recommendations": ["No episodes evaluated"]
-            }
 
-        # Calculate metrics
-        task_scores = rewards
-        average_score = sum(rewards) / len(rewards)
-        sorted_scores = sorted(rewards)
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    error_val = error if error else "null"
+    done_val = str(done).lower()
+    print(
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
+        flush=True
+    )
+
+
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    success_val = str(success).lower()
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(
+        f"[END] success={success_val} steps={steps} score={score:.2f} rewards={rewards_str}",
+        flush=True
+    )
+
+
+def run_task(task_id: str, client: OpenAI) -> None:
+    """Run a single task episode."""
+    # Initialize environment for specific task
+    env = AiSecurityEnv(seed=42, use_dynamic=False, task_id=task_id)
+    
+    # Start logging
+    log_start(task_id, "ai-security-openenv", MODEL_NAME)
+    
+    # Reset environment
+    state = env.reset()
+    
+    rewards = []
+    last_error = None
+    success = False
+    
+    for step in range(1, MAX_STEPS + 1):
+        try:
+            # Create prompt with current state
+            user_prompt = f"""
+Security Event:
+Event ID: {state['event_id']}
+User Role: {state['user_role']}
+Data Sensitivity: {state['data_sensitivity']}
+Status: {state['status']}
+Logs:
+{chr(10).join(f"- {log}" for log in state['logs'])}
+"""
+            
+            # Get response from LLM
+            response = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt.strip()}
+                ],
+                temperature=TEMPERATURE,
+                max_tokens=MAX_TOKENS
+            )
+            
+            # Parse action from response
+            action_text = response.choices[0].message.content.strip()
+            
+            # Try to parse as JSON
+            import json
+            try:
+                action = json.loads(action_text)
+            except json.JSONDecodeError:
+                # Fallback: extract basic structure
+                action = {
+                    "allow": "allow" in action_text.lower(),
+                    "threat_type": "none",
+                    "response_action": "allow" if "allow" in action_text.lower() else "block"
+                }
+            
+            # Execute step
+            observation, reward, done, info = env.step(action)
+            
+            # Log step
+            log_step(step, json.dumps(action), reward, done, last_error)
+            
+            rewards.append(reward)
+            
+            if done:
+                success = reward >= 0.8  # Consider success if score >= 0.8
+                break
+                
+            state = observation
+            
+        except Exception as e:
+            last_error = str(e)
+            log_step(step, "{}", 0.0, True, last_error)
+            rewards.append(0.0)
+            break
+    
+    # Calculate final score (average reward)
+    final_score = sum(rewards) / len(rewards) if rewards else 0.0
+    
+    # Log end
+    log_end(success, len(rewards), final_score, rewards)
+
+
+def main():
+    """Main inference function."""
+    # Initialize OpenAI client
+    client = OpenAI(
+        api_key=HF_TOKEN or os.getenv("OPENAI_API_KEY", ""),
+        base_url=API_BASE_URL
+    )
+    
+    # Run each task
+    for task_id in TASKS:
+        try:
+            run_task(task_id, client)
+        except Exception as e:
+            print(f"Error running task {task_id}: {e}", flush=True)
+
+
+if __name__ == "__main__":
+    main()
         median_score = (sorted_scores[len(sorted_scores)//2] if len(sorted_scores) % 2 == 1
                        else (sorted_scores[len(sorted_scores)//2 - 1] + sorted_scores[len(sorted_scores)//2]) / 2)
         
